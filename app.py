@@ -163,47 +163,74 @@ with col1:
 
 with col2:
     st.markdown("### 📄 Candidate Resume")
-    uploaded_file = st.file_uploader("Drop candidate file here (.TXT only)", type=["txt"], label_visibility="collapsed")
+    # UPGRADED: Now accepts PDF, DOCX, and TXT files!
+    uploaded_file = st.file_uploader("Drop candidate file here (.pdf, .docx, .txt)", type=["pdf", "docx", "txt"], label_visibility="collapsed")
 
 st.write("")
 st.write("")
+
+# Helper function to dynamically extract text based on file format
+def extract_text_from_resume(file):
+    file_type = file.name.split('.')[-1].lower()
+    
+    if file_type == "txt":
+        return file.read().decode("utf-8")
+        
+    elif file_type == "pdf":
+        import pypdf
+        pdf_reader = pypdf.PdfReader(file)
+        extracted_text = ""
+        for page in pdf_reader.pages:
+            text = page.extract_text()
+            if text:
+                extracted_text += text + "\n"
+        return extracted_text
+        
+    elif file_type == "docx":
+        import docx2txt
+        return docx2txt.process(file)
+        
+    return None
 
 # 6. Execution and Analytics Matching Blocks
 if st.button("🚀 Execute Machine Learning Match Assessment"):
     if job_text and uploaded_file:
         with st.spinner("Processing TF-IDF Vectorizer calculations..."):
             try:
-                # Process inputs
-                resume_text = uploaded_file.read().decode("utf-8")
-                text_corpus = [job_text, resume_text]
+                # UPGRADED: Extracting text using our new robust multi-format function
+                resume_text = extract_text_from_resume(uploaded_file)
                 
-                # Run standard TF-IDF and Cosine algorithms
-                vectorizer = TfidfVectorizer(stop_words='english')
-                tfidf_matrix = vectorizer.fit_transform(text_corpus)
-                similarity_matrix = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-                match_score = float(similarity_matrix[0][0]) * 100
-                
-                st.write("---")
-                st.markdown("## 📊 Matching Metrics Result")
-                
-                res_col1, res_col2 = st.columns([1, 2])
-                
-                with res_col1:
-                    st.metric(label="Overall Match Score", value=f"{match_score:.1f}%")
-                
-                with res_col2:
-                    if match_score >= 75:
-                        st.balloons()
-                        st.success("### 🔥 Strong Candidate Match!\nThe skills and terminology found in the resume heavily align with your target profile.")
-                    elif match_score >= 40:
-                        st.info("### 👍 Competitive Match\nThe candidate shares solid foundational overlap, but might be missing critical secondary keywords.")
-                    else:
-                        st.warning("### ⚠️ Low Match Discrepancy\nSignificant terminology mismatch detected. The resume lacks key core requirements outlined in the description.")
-                
-                with st.expander("🔍 View Raw Extracted Metadata"):
-                    st.write(f"**Resume Data Size:** {len(resume_text)} characters")
-                    st.write(f"**Job Description Data Size:** {len(job_text)} characters")
+                if not resume_text or len(resume_text.strip()) == 0:
+                    st.error("❌ Extraction Failed: Could not extract readable text from the uploaded file.")
+                else:
+                    # Run standard TF-IDF and Cosine algorithms
+                    text_corpus = [job_text, resume_text]
+                    vectorizer = TfidfVectorizer(stop_words='english')
+                    tfidf_matrix = vectorizer.fit_transform(text_corpus)
+                    similarity_matrix = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
+                    match_score = float(similarity_matrix[0][0]) * 100
                     
+                    st.write("---")
+                    st.markdown("## 📊 Matching Metrics Result")
+                    
+                    res_col1, res_col2 = st.columns([1, 2])
+                    
+                    with res_col1:
+                        st.metric(label="Overall Match Score", value=f"{match_score:.1f}%")
+                    
+                    with res_col2:
+                        if match_score >= 75:
+                            st.balloons()
+                            st.success("### 🔥 Strong Candidate Match!\nThe skills and terminology found in the resume heavily align with your target profile.")
+                        elif match_score >= 40:
+                            st.info("### 👍 Competitive Match\nThe candidate shares solid foundational overlap, but might be missing critical secondary keywords.")
+                        else:
+                            st.warning("### ⚠️ Low Match Discrepancy\nSignificant terminology mismatch detected. The resume lacks key core requirements outlined in the description.")
+                    
+                    with st.expander("🔍 View Raw Extracted Metadata"):
+                        st.write(f"**Resume Data Size:** {len(resume_text)} characters")
+                        st.write(f"**Job Description Data Size:** {len(job_text)} characters")
+                        
             except Exception as e:
                 st.error(f"An unexpected data processing fault occurred: {e}")
     else:
